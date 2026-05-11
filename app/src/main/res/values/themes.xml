@@ -19,6 +19,12 @@
 
     <style name="Theme.Accounting" parent="Base.Theme.Accounting" />
 
+    <style name="Theme.Accounting.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_content</item>
+        <item name="postSplashScreenTheme">@style/Theme.Accounting</item>
+    </style>
+
     <style name="ShapeAppearance.Accounting.Fab" parent="ShapeAppearance.Material3.Corner.Medium">
         <item name="cornerSize">@dimen/corner_fab</item>
     </style>

@@ -14,11 +14,11 @@
                 android:startY="0"
                 android:type="linear">
                 <item
-                    android:color="#FFFFF0F5"
+                    android:color="#FF2D1B28"
                     android:offset="0" />
                 <item
-                    android:color="#FFFF80AB"
-                    android:offset="0.55" />
+                    android:color="#FF7A2942"
+                    android:offset="0.5" />
                 <item
                     android:color="#FFFF4081"
                     android:offset="1" />

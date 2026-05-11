@@ -26,4 +26,9 @@
 
     <color name="stats_card_background">#FFF0F5</color>
     <color name="category_icon_bg">#FCE4EC</color>
+
+    <color name="splash_background">#FCFBFC</color>
+
+    <!-- 暂无账单插图：与主色同系的柔和粉色 -->
+    <color name="empty_state_icon">#99FF4081</color>
 </resources>
