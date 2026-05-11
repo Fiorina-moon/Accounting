@@ -310,4 +310,53 @@
         app:srcCompat="@drawable/ic_add_24"
         app:tint="@color/white" />
 
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/layout_selection_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="@dimen/content_padding"
+        android:layout_marginEnd="@dimen/content_padding"
+        android:layout_marginBottom="@dimen/fab_margin"
+        android:visibility="gone"
+        app:cardBackgroundColor="?attr/colorSurface"
+        app:cardCornerRadius="@dimen/corner_card"
+        app:cardElevation="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:id="@+id/text_selection_count"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/selection_count"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                tools:text="2 项已选中" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_selection_cancel"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/selection_cancel" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_selection_delete"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/selection_delete"
+                android:textColor="@color/md_theme_error" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -20,8 +20,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class BillViewModel extends AndroidViewModel {
 
@@ -31,7 +33,7 @@ public class BillViewModel extends AndroidViewModel {
     private final MutableLiveData<String> selectedYearMonth = new MutableLiveData<>();
     private final LiveData<List<Bill>> billsForSelectedMonth;
     private final MutableLiveData<Integer> filterBillType = new MutableLiveData<>(FILTER_TYPE_ALL);
-    private final MutableLiveData<String> filterCategory = new MutableLiveData<>("");
+    private final MutableLiveData<Set<String>> filterCategories = new MutableLiveData<>(Collections.emptySet());
 
     private final MediatorLiveData<List<Bill>> displayedBills = new MediatorLiveData<>();
     private final LiveData<MonthSummary> monthOverview;
@@ -48,7 +50,7 @@ public class BillViewModel extends AndroidViewModel {
 
         displayedBills.addSource(billsForSelectedMonth, this::recomputeDisplayedBills);
         displayedBills.addSource(filterBillType, v -> recomputeDisplayedBills(billsForSelectedMonth.getValue()));
-        displayedBills.addSource(filterCategory, v -> recomputeDisplayedBills(billsForSelectedMonth.getValue()));
+        displayedBills.addSource(filterCategories, v -> recomputeDisplayedBills(billsForSelectedMonth.getValue()));
 
         selectedYearMonth.setValue(currentYearMonthString());
     }
@@ -61,9 +63,9 @@ public class BillViewModel extends AndroidViewModel {
         if (typeFilter == null) {
             typeFilter = FILTER_TYPE_ALL;
         }
-        String catFilter = filterCategory.getValue();
-        if (catFilter == null) {
-            catFilter = "";
+        Set<String> catFilters = filterCategories.getValue();
+        if (catFilters == null) {
+            catFilters = Collections.emptySet();
         }
 
         List<Bill> out = new ArrayList<>();
@@ -71,7 +73,7 @@ public class BillViewModel extends AndroidViewModel {
             if (typeFilter != FILTER_TYPE_ALL && b.getType() != typeFilter) {
                 continue;
             }
-            if (!catFilter.isEmpty() && !catFilter.equals(b.getCategory())) {
+            if (!catFilters.isEmpty() && !catFilters.contains(b.getCategory())) {
                 continue;
             }
             out.add(b);
@@ -95,8 +97,8 @@ public class BillViewModel extends AndroidViewModel {
         return selectedMonthLabel;
     }
 
-    public LiveData<String> getFilterCategory() {
-        return filterCategory;
+    public LiveData<Set<String>> getFilterCategories() {
+        return filterCategories;
     }
 
     public LiveData<Integer> getFilterBillType() {
@@ -115,8 +117,28 @@ public class BillViewModel extends AndroidViewModel {
         filterBillType.setValue(typeOrAll);
     }
 
+    public void setFilterCategories(@Nullable List<String> categoriesOrEmptyForAll) {
+        if (categoriesOrEmptyForAll == null || categoriesOrEmptyForAll.isEmpty()) {
+            filterCategories.setValue(Collections.emptySet());
+            return;
+        }
+        LinkedHashSet<String> sanitized = new LinkedHashSet<>();
+        for (String category : categoriesOrEmptyForAll) {
+            if (category != null && !category.trim().isEmpty()) {
+                sanitized.add(category);
+            }
+        }
+        filterCategories.setValue(sanitized.isEmpty() ? Collections.emptySet() : sanitized);
+    }
+
     public void setFilterCategory(@Nullable String categoryOrEmptyForAll) {
-        filterCategory.setValue(categoryOrEmptyForAll != null ? categoryOrEmptyForAll : "");
+        if (categoryOrEmptyForAll == null || categoryOrEmptyForAll.trim().isEmpty()) {
+            setFilterCategories(Collections.emptyList());
+            return;
+        }
+        List<String> single = new ArrayList<>(1);
+        single.add(categoryOrEmptyForAll);
+        setFilterCategories(single);
     }
 
     public void setSelectedYearMonthFromPicker(long utcSelectionMillis) {
@@ -220,6 +242,16 @@ public class BillViewModel extends AndroidViewModel {
 
     public void deleteBill(@NonNull Bill bill, @Nullable Runnable onComplete) {
         repository.delete(bill, onComplete);
+    }
+
+    public void deleteBills(@NonNull List<Bill> bills, @Nullable Runnable onComplete) {
+        if (bills.isEmpty()) {
+            if (onComplete != null) {
+                onComplete.run();
+            }
+            return;
+        }
+        repository.delete(bills, onComplete);
     }
 
     private static MonthSummary summarize(@Nullable List<Bill> bills) {
