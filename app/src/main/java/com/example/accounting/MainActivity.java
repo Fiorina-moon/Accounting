@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
@@ -11,6 +12,7 @@ import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
+import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
@@ -63,14 +65,18 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+        View root = findViewById(R.id.root);
         mainContent = findViewById(R.id.main);
-        ViewCompat.setOnApplyWindowInsetsListener(mainContent, (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            int mask = WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout();
+            Insets bars = insets.getInsets(mask);
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            // 避免子 View（如 AppBar）再各自 fitsSystemWindows 叠一层；同时保证底栏虚拟按键区域被留出
+            return WindowInsetsCompat.CONSUMED;
         });
 
         recyclerBills = findViewById(R.id.recycler_bills);
@@ -176,8 +182,7 @@ public class MainActivity extends AppCompatActivity {
                         .setPositiveButton(R.string.delete_bill_confirm, (dialog, which) -> {
                             BillAdapter.closeAllSwipeRows(recyclerBills);
                             billViewModel.deleteBill(bill, () ->
-                                    Snackbar.make(mainContent, R.string.snack_bill_deleted, Snackbar.LENGTH_SHORT)
-                                            .show()
+                                    showFabSnackbar(R.string.snack_bill_deleted)
                             );
                         })
                         .show();
@@ -225,6 +230,99 @@ public class MainActivity extends AppCompatActivity {
         categoryDisplayItems.add(getString(R.string.category_shopping));
         categoryDisplayItems.add(getString(R.string.category_other));
         categoryCheckedStates = new boolean[categoryDisplayItems.size()];
+    }
+
+    private static final float FAB_SNACKBAR_GAP_DP = 4f;
+    /** 略大于典型单行 Snackbar，用于 show 前预抬，避免条带滑入过程中与 FAB 区域重合 */
+    private static final float SNACKBAR_EST_HEIGHT_DP = 56f;
+
+    /**
+     * FAB 在 Coordinator 外：show 前预抬 + 布局后按实际高度瞬间同步（无位移动画，避免与 Snackbar 滑入在时间上重叠）。
+     */
+    public void showFabSnackbar(int messageResId) {
+        showFabSnackbar(getString(messageResId));
+    }
+
+    public void showFabSnackbar(@NonNull CharSequence message) {
+        mainContent.post(() -> {
+            Snackbar snackbar = Snackbar.make(mainContent, message, Snackbar.LENGTH_SHORT);
+            snackbar.setGestureInsetBottomIgnored(true);
+            final View snackView = snackbar.getView();
+
+            preLiftFabBeforeSnackbarShows();
+
+            snackbar.addCallback(new Snackbar.Callback() {
+                @Override
+                public void onShown(Snackbar sb) {
+                    syncFabLiftToSnackbarHeight(snackView);
+                }
+
+                @Override
+                public void onDismissed(Snackbar transientBottomBar, int event) {
+                    fabAdd.animate().cancel();
+                    fabAdd.setTranslationX(0f);
+                    fabAdd.setTranslationY(0f);
+                }
+            });
+            snackbar.show();
+        });
+    }
+
+    private void preLiftFabBeforeSnackbarShows() {
+        if (fabAdd.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        fabAdd.animate().cancel();
+        float density = getResources().getDisplayMetrics().density;
+        int estH = (int) (SNACKBAR_EST_HEIGHT_DP * density + 0.5f);
+        float gapPx = FAB_SNACKBAR_GAP_DP * density;
+        fabAdd.setTranslationY(-(estH + gapPx));
+    }
+
+    /** 测量到实际高度后瞬时对齐（不播放 translation 动画） */
+    private void syncFabLiftToSnackbarHeight(@NonNull final View snackView) {
+        if (fabAdd.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        final ViewTreeObserver.OnGlobalLayoutListener listener = new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                int h = snackbarInnerHeightPx(snackView);
+                if (h <= 0) {
+                    return;
+                }
+                if (snackView.getViewTreeObserver().isAlive()) {
+                    snackView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                }
+                applyFabLiftImmediatePx(h);
+            }
+        };
+        ViewTreeObserver observer = snackView.getViewTreeObserver();
+        if (observer.isAlive()) {
+            observer.addOnGlobalLayoutListener(listener);
+        }
+        snackView.post(() -> {
+            int h = snackbarInnerHeightPx(snackView);
+            if (h > 0) {
+                if (snackView.getViewTreeObserver().isAlive()) {
+                    snackView.getViewTreeObserver().removeOnGlobalLayoutListener(listener);
+                }
+                applyFabLiftImmediatePx(h);
+            }
+        });
+    }
+
+    private static int snackbarInnerHeightPx(@NonNull View snackView) {
+        return Math.max(snackView.getHeight(), snackView.getMeasuredHeight());
+    }
+
+    private void applyFabLiftImmediatePx(int snackbarBarHeightPx) {
+        if (fabAdd.getVisibility() != View.VISIBLE || snackbarBarHeightPx <= 0) {
+            return;
+        }
+        float gapPx = FAB_SNACKBAR_GAP_DP * getResources().getDisplayMetrics().density;
+        fabAdd.animate().cancel();
+        fabAdd.setTranslationY(-(snackbarBarHeightPx + gapPx));
     }
 
     private void onMonthLabelChanged(String label) {
@@ -325,11 +423,7 @@ public class MainActivity extends AppCompatActivity {
                     BillAdapter.closeAllSwipeRows(recyclerBills);
                     billViewModel.deleteBills(selectedBills, () -> {
                         billAdapter.clearSelectionMode();
-                        Snackbar.make(
-                                mainContent,
-                                getString(R.string.snack_bills_deleted, selectedBills.size()),
-                                Snackbar.LENGTH_SHORT
-                        ).show();
+                        showFabSnackbar(getString(R.string.snack_bills_deleted, selectedBills.size()));
                     });
                 })
                 .show();

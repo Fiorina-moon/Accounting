@@ -9,6 +9,8 @@ import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -107,15 +109,24 @@ public class AddBillSheetFragment extends BottomSheetDialogFragment {
     @Override
     public void onStart() {
         super.onStart();
-        Dialog dialog = getDialog();
-        if (dialog instanceof BottomSheetDialog) {
-            View sheet = dialog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
-            if (sheet != null) {
-                BottomSheetBehavior.from(sheet).setPeekHeight(
-                        (int) (getResources().getDisplayMetrics().heightPixels * 0.5f)
-                );
-            }
+        Dialog d = getDialog();
+        if (!(d instanceof BottomSheetDialog)) {
+            return;
         }
+        BottomSheetDialog dialog = (BottomSheetDialog) d;
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        }
+        View sheet = dialog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
+        if (sheet == null) {
+            return;
+        }
+        BottomSheetBehavior<View> behavior = BottomSheetBehavior.from(sheet);
+        // 按内容高度升高，顶部仍在屏幕中部以下，是典型的底部弹层，而不是贴顶全屏
+        behavior.setFitToContents(true);
+        behavior.setPeekHeight(BottomSheetBehavior.PEEK_HEIGHT_AUTO);
+        sheet.post(() -> behavior.setState(BottomSheetBehavior.STATE_EXPANDED));
     }
 
     @Nullable
@@ -267,8 +278,12 @@ public class AddBillSheetFragment extends BottomSheetDialogFragment {
 
         int chipId = chipGroupCategory.getCheckedChipId();
         if (chipId == View.NO_ID) {
-            Snackbar.make(requireActivity().findViewById(R.id.main), R.string.error_category_required, Snackbar.LENGTH_SHORT)
-                    .show();
+            if (requireActivity() instanceof MainActivity) {
+                ((MainActivity) requireActivity()).showFabSnackbar(R.string.error_category_required);
+            } else {
+                Snackbar.make(requireActivity().findViewById(R.id.main), R.string.error_category_required, Snackbar.LENGTH_SHORT)
+                        .show();
+            }
             return;
         }
         Chip chip = chipGroupCategory.findViewById(chipId);
@@ -279,19 +294,22 @@ public class AddBillSheetFragment extends BottomSheetDialogFragment {
             note = inputNote.getText().toString().trim();
         }
 
-        View anchor = requireActivity().findViewById(R.id.main);
         if (editingBillId > 0L) {
             Bill bill = new Bill(amount, type, category, selectedDateMillis, note);
             bill.setId(editingBillId);
             billViewModel.updateBill(bill, () -> {
-                Snackbar.make(anchor, R.string.snack_bill_updated, Snackbar.LENGTH_SHORT).show();
                 dismiss();
+                if (requireActivity() instanceof MainActivity) {
+                    ((MainActivity) requireActivity()).showFabSnackbar(R.string.snack_bill_updated);
+                }
             });
         } else {
             Bill bill = new Bill(amount, type, category, selectedDateMillis, note);
             billViewModel.insertBill(bill, () -> {
-                Snackbar.make(anchor, R.string.snack_bill_saved, Snackbar.LENGTH_SHORT).show();
                 dismiss();
+                if (requireActivity() instanceof MainActivity) {
+                    ((MainActivity) requireActivity()).showFabSnackbar(R.string.snack_bill_saved);
+                }
             });
         }
     }
