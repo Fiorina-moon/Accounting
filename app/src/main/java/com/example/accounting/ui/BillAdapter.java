@@ -1,7 +1,6 @@
 package com.example.accounting.ui;
 
 import android.annotation.SuppressLint;
-import android.content.res.ColorStateList;
 import android.graphics.Outline;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -195,6 +194,40 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
         }
     }
 
+    /** 收起RecyclerView中所有侧滑展开的行（替换原 ItemTouchHelper 的关闭逻辑）。 */
+    public static void closeAllSwipeRows(@Nullable RecyclerView recyclerView) {
+        if (recyclerView == null) {
+            return;
+        }
+        for (int i = 0; i < recyclerView.getChildCount(); i++) {
+            View row = recyclerView.getChildAt(i);
+            View fg = row.findViewById(R.id.swipe_foreground);
+            if (fg != null && fg.getTranslationX() != 0f) {
+                fg.animate().cancel();
+                fg.animate().translationX(0f).setDuration(120).start();
+                fg.bringToFront();
+            }
+        }
+    }
+
+    static void closeOtherSwipeRows(@Nullable RecyclerView recyclerView, @NonNull View exceptRow) {
+        if (recyclerView == null) {
+            return;
+        }
+        for (int i = 0; i < recyclerView.getChildCount(); i++) {
+            View row = recyclerView.getChildAt(i);
+            if (row == exceptRow) {
+                continue;
+            }
+            View fg = row.findViewById(R.id.swipe_foreground);
+            if (fg != null && fg.getTranslationX() != 0f) {
+                fg.animate().cancel();
+                fg.animate().translationX(0f).setDuration(120).start();
+                fg.bringToFront();
+            }
+        }
+    }
+
     @Override
     public void onViewRecycled(@NonNull BillViewHolder holder) {
         holder.recycleSwipe();
@@ -236,6 +269,7 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
             swipeForeground.animate().cancel();
             swipeForeground.setTranslationX(0f);
             isSwiping = false;
+            swipeForeground.bringToFront();
         }
 
         @SuppressLint("ClickableViewAccessibility")
@@ -261,7 +295,7 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
                 textAmount.setText("+" + amountStr);
                 textAmount.setTextColor(ContextCompat.getColor(itemView.getContext(), R.color.color_success));
             }
-            iconCategory.setBackgroundTintList(ColorStateList.valueOf(0xFFFFECF1));
+            iconCategory.setImageResource(resolveCategoryIconRes(bill.getCategory()));
 
             if (inSelectionMode) {
                 swipeDelete.setVisibility(View.GONE);
@@ -280,7 +314,12 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
 
             swipeDelete.setVisibility(View.VISIBLE);
             swipeForeground.setStrokeWidth(0);
+            swipeForeground.setOnClickListener(null);
             swipeForeground.setOnLongClickListener(null);
+
+            final RecyclerView hostRv = itemView.getParent() instanceof RecyclerView
+                    ? (RecyclerView) itemView.getParent()
+                    : null;
 
             // --- 关键：动态计算侧滑限位 ---
             swipeDelete.post(() -> {
@@ -300,12 +339,28 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
             swipeForeground.setOnTouchListener(new View.OnTouchListener() {
                 private Runnable longPressRunnable;
                 private boolean longPressTriggered;
+                /**
+                 * 红色删除条在 swipe_foreground 下层，但前景仍为 match_parent，触点命中在前景上；
+                 * return false 不会把事件交给 swipe_delete，必须在这里识别删除区并在 UP 时触发删除。
+                 */
+                private boolean pendingDeleteZoneTap;
 
                 private void cancelLongPress(View v) {
                     if (longPressRunnable != null) {
                         v.removeCallbacks(longPressRunnable);
                         longPressRunnable = null;
                     }
+                }
+
+                private boolean isInDeleteZone(MotionEvent event, float translationX) {
+                    if (translationX >= -10f) {
+                        return false;
+                    }
+                    int[] loc = new int[2];
+                    itemView.getLocationOnScreen(loc);
+                    float xInRow = event.getRawX() - loc[0];
+                    float threshold = itemView.getWidth() + translationX;
+                    return xInRow > threshold - 1f;
                 }
 
                 @Override
@@ -321,6 +376,14 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
                             isSwiping = false;
                             isVerticalDragging = false;
                             longPressTriggered = false;
+                            pendingDeleteZoneTap = false;
+
+                            if (isInDeleteZone(event, currentTranslationX)) {
+                                cancelLongPress(v);
+                                pendingDeleteZoneTap = true;
+                                v.getParent().requestDisallowInterceptTouchEvent(false);
+                                return true;
+                            }
 
                             longPressRunnable = () -> {
                                 longPressTriggered = true;
@@ -328,15 +391,6 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
                             };
                             v.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout());
 
-                            if (currentTranslationX < -10) {
-                                float clickX = event.getX();
-                                if (clickX > (v.getWidth() + currentTranslationX)) {
-                                    cancelLongPress(v);
-                                    return false;
-                                }
-                            }
-
-                            // 不要在 DOWN 阶段就抢占，先等方向判定，避免影响 RecyclerView 纵向滚动
                             v.getParent().requestDisallowInterceptTouchEvent(false);
                             return true;
 
@@ -346,21 +400,24 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
                             float absDx = Math.abs(dx);
                             float absDy = Math.abs(dy);
 
+                            if (pendingDeleteZoneTap && (absDx > touchSlop || absDy > touchSlop)) {
+                                pendingDeleteZoneTap = false;
+                            }
+
                             if (!isSwiping && !isVerticalDragging) {
                                 if (absDy > touchSlop && absDy > absDx) {
-                                    // 明确是竖向滚动手势：交还给父级（RecyclerView）处理
                                     isVerticalDragging = true;
                                     cancelLongPress(v);
-                                    v.getParent().requestDisallowInterceptTouchEvent(false);
                                     return false;
                                 }
                                 if (absDx > touchSlop && absDx > absDy) {
-                                    // 明确是横向手势：由当前 item 处理侧滑
                                     isSwiping = true;
                                     cancelLongPress(v);
                                     v.getParent().requestDisallowInterceptTouchEvent(true);
+                                    closeOtherSwipeRows(hostRv, itemView);
                                 }
                             }
+
                             if (isSwiping) {
                                 float newT = initialTranslationX + dx;
                                 v.setTranslationX(Math.max(maxSwipeLimit, Math.min(0, newT)));
@@ -372,33 +429,46 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
                         case MotionEvent.ACTION_CANCEL:
                             cancelLongPress(v);
                             v.getParent().requestDisallowInterceptTouchEvent(false);
-                            if (isVerticalDragging) {
+
+                            if (isVerticalDragging || longPressTriggered) {
+                                pendingDeleteZoneTap = false;
                                 return false;
                             }
-                            if (longPressTriggered) {
+
+                            if (pendingDeleteZoneTap && event.getAction() == MotionEvent.ACTION_UP) {
+                                float upDx = Math.abs(event.getRawX() - initialX);
+                                float upDy = Math.abs(event.getRawY() - initialY);
+                                pendingDeleteZoneTap = false;
+                                if (!isSwiping && upDx < touchSlop && upDy < touchSlop) {
+                                    if (listener != null) {
+                                        listener.onBillDeleteClick(bill);
+                                    }
+                                    recycleSwipe();
+                                }
                                 return true;
                             }
-                            float finalTx = v.getTranslationX();
+                            pendingDeleteZoneTap = false;
 
+                            float finalTx = v.getTranslationX();
                             if (!isSwiping) {
                                 float upDx = Math.abs(event.getRawX() - initialX);
                                 float upDy = Math.abs(event.getRawY() - initialY);
-                                long pressDuration = event.getEventTime() - initialDownTimeMs;
-                                float tapMoveThreshold = Math.max(8f, touchSlop * 0.55f);
-                                boolean isRealTap = upDx <= tapMoveThreshold
-                                        && upDy <= tapMoveThreshold
-                                        && pressDuration < 300L;
-                                if (finalTx < -10) {
-                                    v.animate().translationX(0).setDuration(200).start();
-                                } else if (isRealTap && listener != null) {
-                                    listener.onBillClick(bill);
+                                if (upDx < touchSlop && upDy < touchSlop) {
+                                    if (finalTx < -10) {
+                                        swipeForeground.bringToFront();
+                                        v.animate().translationX(0).setDuration(200).start();
+                                    } else if (listener != null) {
+                                        listener.onBillClick(bill);
+                                    }
                                 }
                                 return true;
                             }
 
                             if (finalTx < maxSwipeLimit * 0.4f) {
+                                swipeDelete.bringToFront();
                                 v.animate().translationX(maxSwipeLimit).setDuration(200).start();
                             } else {
+                                swipeForeground.bringToFront();
                                 v.animate().translationX(0).setDuration(200).start();
                             }
                             return true;
@@ -406,6 +476,22 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
                     return false;
                 }
             });
+        }
+
+        private int resolveCategoryIconRes(@Nullable String category) {
+            if (category == null) {
+                return R.drawable.ic_receipt_24;
+            }
+            if (category.equals(itemView.getContext().getString(R.string.category_dining))) {
+                return R.drawable.ic_restaurant_24;
+            }
+            if (category.equals(itemView.getContext().getString(R.string.category_transport))) {
+                return R.drawable.ic_directions_bus_24;
+            }
+            if (category.equals(itemView.getContext().getString(R.string.category_shopping))) {
+                return R.drawable.ic_shopping_bag_24;
+            }
+            return R.drawable.ic_receipt_24;
         }
     }
 }

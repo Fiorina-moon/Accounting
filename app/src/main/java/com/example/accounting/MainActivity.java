@@ -22,7 +22,6 @@ import androidx.recyclerview.widget.SimpleItemAnimator;
 import com.example.accounting.data.local.entity.Bill;
 import com.example.accounting.data.local.model.MonthSummary;
 import com.example.accounting.ui.BillAdapter;
-import com.example.accounting.ui.BillSwipeItemTouchHelperCallback;
 import com.example.accounting.viewmodel.BillViewModel;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.datepicker.MaterialDatePicker;
@@ -45,7 +44,6 @@ public class MainActivity extends AppCompatActivity {
     private View emptyState;
     private RecyclerView recyclerBills;
     private View mainContent;
-    private BillSwipeItemTouchHelperCallback swipeCallback;
     private View selectionActionsLayout;
     private TextView selectionCountText;
     private View btnSelectionCancel;
@@ -99,15 +97,11 @@ public class MainActivity extends AppCompatActivity {
         }
         recyclerBills.setItemAnimator(animator);
 
-        int deleteWidthPx = (int) (80f * getResources().getDisplayMetrics().density + 0.5f);
-        swipeCallback = new BillSwipeItemTouchHelperCallback(deleteWidthPx);
-        new androidx.recyclerview.widget.ItemTouchHelper(swipeCallback).attachToRecyclerView(recyclerBills);
-
         recyclerBills.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 if (dy != 0) {
-                    swipeCallback.closeAllOpenRows(recyclerView);
+                    BillAdapter.closeAllSwipeRows(recyclerView);
                 }
             }
         });
@@ -115,15 +109,15 @@ public class MainActivity extends AppCompatActivity {
         billViewModel = new ViewModelProvider(this).get(BillViewModel.class);
 
         btnMonthPrev.setOnClickListener(v -> {
-            swipeCallback.closeAllOpenRows(recyclerBills);
+            BillAdapter.closeAllSwipeRows(recyclerBills);
             billViewModel.selectPreviousMonth();
         });
         btnMonthNext.setOnClickListener(v -> {
-            swipeCallback.closeAllOpenRows(recyclerBills);
+            BillAdapter.closeAllSwipeRows(recyclerBills);
             billViewModel.selectNextMonth();
         });
         btnMonthLabel.setOnClickListener(v -> {
-            swipeCallback.closeAllOpenRows(recyclerBills);
+            BillAdapter.closeAllSwipeRows(recyclerBills);
             showMonthPicker();
         });
 
@@ -134,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
             if (position < 0 || position >= typeFilterValues.size()) {
                 return;
             }
-            swipeCallback.closeAllOpenRows(recyclerBills);
+            BillAdapter.closeAllSwipeRows(recyclerBills);
             billViewModel.setFilterBillType(typeFilterValues.get(position));
         });
 
@@ -143,19 +137,19 @@ public class MainActivity extends AppCompatActivity {
         categoryDropdown.setKeyListener(null);
         categoryDropdown.setOnTouchListener((v, event) -> {
             if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-                swipeCallback.closeAllOpenRows(recyclerBills);
+                BillAdapter.closeAllSwipeRows(recyclerBills);
                 showCategoryMultiSelectDialog();
                 return true;
             }
             return false;
         });
         categoryDropdown.setOnClickListener(v -> {
-            swipeCallback.closeAllOpenRows(recyclerBills);
+            BillAdapter.closeAllSwipeRows(recyclerBills);
             showCategoryMultiSelectDialog();
         });
         if (layoutCategoryDropdown != null) {
             layoutCategoryDropdown.setEndIconOnClickListener(v -> {
-                swipeCallback.closeAllOpenRows(recyclerBills);
+                BillAdapter.closeAllSwipeRows(recyclerBills);
                 showCategoryMultiSelectDialog();
             });
         }
@@ -180,7 +174,7 @@ public class MainActivity extends AppCompatActivity {
                         .setMessage(R.string.delete_bill_message)
                         .setNegativeButton(android.R.string.cancel, null)
                         .setPositiveButton(R.string.delete_bill_confirm, (dialog, which) -> {
-                            swipeCallback.closeAllOpenRows(recyclerBills);
+                            BillAdapter.closeAllSwipeRows(recyclerBills);
                             billViewModel.deleteBill(bill, () ->
                                     Snackbar.make(mainContent, R.string.snack_bill_deleted, Snackbar.LENGTH_SHORT)
                                             .show()
@@ -191,7 +185,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnSelectionCancel.setOnClickListener(v -> {
-            swipeCallback.closeAllOpenRows(recyclerBills);
+            BillAdapter.closeAllSwipeRows(recyclerBills);
             billAdapter.clearSelectionMode();
         });
         btnSelectionDelete.setOnClickListener(v -> onBatchDeleteRequested());
@@ -311,7 +305,7 @@ public class MainActivity extends AppCompatActivity {
             fabAdd.setVisibility(View.VISIBLE);
             return;
         }
-        swipeCallback.closeAllOpenRows(recyclerBills);
+        BillAdapter.closeAllSwipeRows(recyclerBills);
         selectionActionsLayout.setVisibility(View.VISIBLE);
         fabAdd.setVisibility(View.GONE);
         selectionCountText.setText(getString(R.string.selection_count, selectedCount));
@@ -328,7 +322,7 @@ public class MainActivity extends AppCompatActivity {
                 .setMessage(getString(R.string.delete_bills_message, selectedBills.size()))
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.delete_bill_confirm, (dialog, which) -> {
-                    swipeCallback.closeAllOpenRows(recyclerBills);
+                    BillAdapter.closeAllSwipeRows(recyclerBills);
                     billViewModel.deleteBills(selectedBills, () -> {
                         billAdapter.clearSelectionMode();
                         Snackbar.make(
@@ -342,7 +336,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void onBillsChanged(List<Bill> bills) {
-        swipeCallback.closeAllOpenRows(recyclerBills);
+        BillAdapter.closeAllSwipeRows(recyclerBills);
         List<Bill> list = bills != null ? bills : Collections.emptyList();
         boolean empty = list.isEmpty();
         billAdapter.submitList(list, () -> {
