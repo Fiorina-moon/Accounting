@@ -1,8 +1,11 @@
 package com.example.accounting;
 
 import android.os.Bundle;
+import android.text.InputType;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
@@ -27,11 +30,13 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -41,6 +46,11 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView recyclerBills;
     private View mainContent;
     private BillSwipeItemTouchHelperCallback swipeCallback;
+    private View selectionActionsLayout;
+    private TextView selectionCountText;
+    private View btnSelectionCancel;
+    private View btnSelectionDelete;
+    private FloatingActionButton fabAdd;
 
     private MaterialButton btnMonthLabel;
 
@@ -51,8 +61,7 @@ public class MainActivity extends AppCompatActivity {
 
     private MaterialAutoCompleteTextView categoryDropdown;
     private final List<String> categoryDisplayItems = new ArrayList<>();
-    private final List<String> categoryFilterValues = new ArrayList<>();
-    private ArrayAdapter<String> categoryAdapter;
+    private boolean[] categoryCheckedStates = new boolean[0];
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,14 +77,20 @@ public class MainActivity extends AppCompatActivity {
 
         recyclerBills = findViewById(R.id.recycler_bills);
         emptyState = findViewById(R.id.empty_state);
-        FloatingActionButton fabAdd = findViewById(R.id.fab_add);
+        fabAdd = findViewById(R.id.fab_add);
         MaterialButton btnMonthPrev = findViewById(R.id.btn_month_prev);
         btnMonthLabel = findViewById(R.id.btn_month_label);
         MaterialButton btnMonthNext = findViewById(R.id.btn_month_next);
         typeDropdown = findViewById(R.id.type_dropdown);
         categoryDropdown = findViewById(R.id.category_dropdown);
+        TextInputLayout layoutCategoryDropdown = findViewById(R.id.layout_category_dropdown);
+        selectionActionsLayout = findViewById(R.id.layout_selection_actions);
+        selectionCountText = findViewById(R.id.text_selection_count);
+        btnSelectionCancel = findViewById(R.id.btn_selection_cancel);
+        btnSelectionDelete = findViewById(R.id.btn_selection_delete);
 
         billAdapter = new BillAdapter();
+        billAdapter.setSelectionStateListener(this::onSelectionStateChanged);
         recyclerBills.setLayoutManager(new LinearLayoutManager(this));
         recyclerBills.setAdapter(billAdapter);
         RecyclerView.ItemAnimator animator = new DefaultItemAnimator();
@@ -124,20 +139,31 @@ public class MainActivity extends AppCompatActivity {
         });
 
         buildCategoryDropdownData();
-        categoryAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, categoryDisplayItems);
-        categoryDropdown.setAdapter(categoryAdapter);
-        categoryDropdown.setOnItemClickListener((parent, view, position, id) -> {
-            if (position < 0 || position >= categoryFilterValues.size()) {
-                return;
+        categoryDropdown.setInputType(InputType.TYPE_NULL);
+        categoryDropdown.setKeyListener(null);
+        categoryDropdown.setOnTouchListener((v, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                swipeCallback.closeAllOpenRows(recyclerBills);
+                showCategoryMultiSelectDialog();
+                return true;
             }
-            swipeCallback.closeAllOpenRows(recyclerBills);
-            billViewModel.setFilterCategory(categoryFilterValues.get(position));
+            return false;
         });
+        categoryDropdown.setOnClickListener(v -> {
+            swipeCallback.closeAllOpenRows(recyclerBills);
+            showCategoryMultiSelectDialog();
+        });
+        if (layoutCategoryDropdown != null) {
+            layoutCategoryDropdown.setEndIconOnClickListener(v -> {
+                swipeCallback.closeAllOpenRows(recyclerBills);
+                showCategoryMultiSelectDialog();
+            });
+        }
 
         billViewModel.getDisplayedBills().observe(this, this::onBillsChanged);
         billViewModel.getMonthOverview().observe(this, this::onMonthOverviewChanged);
         billViewModel.getSelectedMonthLabel().observe(this, this::onMonthLabelChanged);
-        billViewModel.getFilterCategory().observe(this, this::onFilterCategoryChanged);
+        billViewModel.getFilterCategories().observe(this, this::onFilterCategoriesChanged);
         billViewModel.getFilterBillType().observe(this, this::onFilterBillTypeChanged);
 
         billAdapter.setBillActionsListener(new BillAdapter.BillActionsListener() {
@@ -163,6 +189,12 @@ public class MainActivity extends AppCompatActivity {
                         .show();
             }
         });
+
+        btnSelectionCancel.setOnClickListener(v -> {
+            swipeCallback.closeAllOpenRows(recyclerBills);
+            billAdapter.clearSelectionMode();
+        });
+        btnSelectionDelete.setOnClickListener(v -> onBatchDeleteRequested());
 
         fabAdd.setOnClickListener(v ->
                 AddBillSheetFragment.newInstanceForAdd()
@@ -194,17 +226,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void buildCategoryDropdownData() {
         categoryDisplayItems.clear();
-        categoryFilterValues.clear();
-        categoryDisplayItems.add(getString(R.string.filter_all));
-        categoryFilterValues.add("");
         categoryDisplayItems.add(getString(R.string.category_dining));
-        categoryFilterValues.add(getString(R.string.category_dining));
         categoryDisplayItems.add(getString(R.string.category_transport));
-        categoryFilterValues.add(getString(R.string.category_transport));
         categoryDisplayItems.add(getString(R.string.category_shopping));
-        categoryFilterValues.add(getString(R.string.category_shopping));
         categoryDisplayItems.add(getString(R.string.category_other));
-        categoryFilterValues.add(getString(R.string.category_other));
+        categoryCheckedStates = new boolean[categoryDisplayItems.size()];
     }
 
     private void onMonthLabelChanged(String label) {
@@ -223,13 +249,96 @@ public class MainActivity extends AppCompatActivity {
         typeDropdown.setText(typeDisplayItems.get(index), false);
     }
 
-    private void onFilterCategoryChanged(String categoryOrEmpty) {
-        String key = categoryOrEmpty != null ? categoryOrEmpty : "";
-        int index = categoryFilterValues.indexOf(key);
-        if (index < 0) {
-            index = 0;
+    private void onFilterCategoriesChanged(Set<String> selectedCategories) {
+        if (selectedCategories == null) {
+            selectedCategories = Collections.emptySet();
         }
-        categoryDropdown.setText(categoryDisplayItems.get(index), false);
+        if (categoryCheckedStates.length != categoryDisplayItems.size()) {
+            categoryCheckedStates = new boolean[categoryDisplayItems.size()];
+        }
+        for (int i = 0; i < categoryDisplayItems.size(); i++) {
+            categoryCheckedStates[i] = selectedCategories.contains(categoryDisplayItems.get(i));
+        }
+        categoryDropdown.setText(buildCategorySummaryText(selectedCategories), false);
+    }
+
+    private void showCategoryMultiSelectDialog() {
+        boolean[] workingChecked = categoryCheckedStates.clone();
+        CharSequence[] labels = categoryDisplayItems.toArray(new CharSequence[0]);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.filter_category_label)
+                .setMultiChoiceItems(labels, workingChecked, (dialog, which, isChecked) -> {
+                    if (which >= 0 && which < workingChecked.length) {
+                        workingChecked[which] = isChecked;
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    List<String> selected = new ArrayList<>();
+                    for (int i = 0; i < workingChecked.length; i++) {
+                        if (workingChecked[i]) {
+                            selected.add(categoryDisplayItems.get(i));
+                        }
+                    }
+                    billViewModel.setFilterCategories(selected);
+                })
+                .show();
+    }
+
+    private String buildCategorySummaryText(Set<String> selectedCategories) {
+        if (selectedCategories == null || selectedCategories.isEmpty()) {
+            return getString(R.string.filter_all);
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String label : categoryDisplayItems) {
+            if (!selectedCategories.contains(label)) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append('、');
+            }
+            sb.append(label);
+        }
+        return sb.length() == 0 ? getString(R.string.filter_all) : sb.toString();
+    }
+
+    private void onSelectionStateChanged(boolean inSelectionMode, int selectedCount) {
+        if (selectionActionsLayout == null || selectionCountText == null || fabAdd == null) {
+            return;
+        }
+        if (!inSelectionMode) {
+            selectionActionsLayout.setVisibility(View.GONE);
+            fabAdd.setVisibility(View.VISIBLE);
+            return;
+        }
+        swipeCallback.closeAllOpenRows(recyclerBills);
+        selectionActionsLayout.setVisibility(View.VISIBLE);
+        fabAdd.setVisibility(View.GONE);
+        selectionCountText.setText(getString(R.string.selection_count, selectedCount));
+    }
+
+    private void onBatchDeleteRequested() {
+        List<Bill> selectedBills = billAdapter.getSelectedBills();
+        if (selectedBills.isEmpty()) {
+            billAdapter.clearSelectionMode();
+            return;
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.delete_bills_title)
+                .setMessage(getString(R.string.delete_bills_message, selectedBills.size()))
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.delete_bill_confirm, (dialog, which) -> {
+                    swipeCallback.closeAllOpenRows(recyclerBills);
+                    billViewModel.deleteBills(selectedBills, () -> {
+                        billAdapter.clearSelectionMode();
+                        Snackbar.make(
+                                mainContent,
+                                getString(R.string.snack_bills_deleted, selectedBills.size()),
+                                Snackbar.LENGTH_SHORT
+                        ).show();
+                    });
+                })
+                .show();
     }
 
     private void onBillsChanged(List<Bill> bills) {

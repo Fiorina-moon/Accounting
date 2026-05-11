@@ -24,8 +24,12 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.imageview.ShapeableImageView;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
 
@@ -34,12 +38,25 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
         void onBillDeleteClick(@NonNull Bill bill);
     }
 
+    public interface SelectionStateListener {
+        void onSelectionChanged(boolean inSelectionMode, int selectedCount);
+    }
+
+    private interface SelectionCallbacks {
+        void onToggleSelection(@NonNull Bill target);
+        void onEnterSelectionMode(@NonNull Bill target);
+    }
+
     private static final ThreadLocal<SimpleDateFormat> DATE_FORMAT = ThreadLocal.withInitial(
             () -> new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     );
 
     @Nullable
     private BillActionsListener billActionsListener;
+    @Nullable
+    private SelectionStateListener selectionStateListener;
+    private boolean selectionMode = false;
+    private final LinkedHashSet<Long> selectedBillIds = new LinkedHashSet<>();
 
     public BillAdapter() {
         super(DIFF_CALLBACK);
@@ -47,6 +64,40 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
 
     public void setBillActionsListener(@Nullable BillActionsListener listener) {
         this.billActionsListener = listener;
+    }
+
+    public void setSelectionStateListener(@Nullable SelectionStateListener listener) {
+        this.selectionStateListener = listener;
+        notifySelectionStateChanged();
+    }
+
+    public boolean isSelectionMode() {
+        return selectionMode;
+    }
+
+    public int getSelectedCount() {
+        return selectedBillIds.size();
+    }
+
+    @NonNull
+    public List<Bill> getSelectedBills() {
+        List<Bill> selected = new ArrayList<>();
+        for (Bill bill : getCurrentList()) {
+            if (selectedBillIds.contains(bill.getId())) {
+                selected.add(bill);
+            }
+        }
+        return selected;
+    }
+
+    public void clearSelectionMode() {
+        if (!selectionMode && selectedBillIds.isEmpty()) {
+            return;
+        }
+        selectionMode = false;
+        selectedBillIds.clear();
+        notifyDataSetChanged();
+        notifySelectionStateChanged();
     }
 
     private static final DiffUtil.ItemCallback<Bill> DIFF_CALLBACK = new DiffUtil.ItemCallback<Bill>() {
@@ -85,7 +136,63 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
 
     @Override
     public void onBindViewHolder(@NonNull BillViewHolder holder, int position) {
-        holder.bind(getItem(position), billActionsListener);
+        Bill bill = getItem(position);
+        holder.bind(
+                bill,
+                billActionsListener,
+                selectionMode,
+                selectedBillIds.contains(bill.getId()),
+                new SelectionCallbacks() {
+                    @Override
+                    public void onToggleSelection(@NonNull Bill target) {
+                        toggleSelection(target);
+                    }
+
+                    @Override
+                    public void onEnterSelectionMode(@NonNull Bill target) {
+                        if (!selectionMode) {
+                            selectionMode = true;
+                        }
+                        toggleSelection(target);
+                    }
+                }
+        );
+    }
+
+    @Override
+    public void onCurrentListChanged(@NonNull List<Bill> previousList, @NonNull List<Bill> currentList) {
+        super.onCurrentListChanged(previousList, currentList);
+        if (selectedBillIds.isEmpty()) {
+            return;
+        }
+        Set<Long> validIds = new LinkedHashSet<>();
+        for (Bill bill : currentList) {
+            validIds.add(bill.getId());
+        }
+        if (selectedBillIds.retainAll(validIds) && selectedBillIds.isEmpty() && selectionMode) {
+            selectionMode = false;
+        }
+        notifySelectionStateChanged();
+    }
+
+    private void toggleSelection(@NonNull Bill target) {
+        long id = target.getId();
+        if (selectedBillIds.contains(id)) {
+            selectedBillIds.remove(id);
+        } else {
+            selectedBillIds.add(id);
+        }
+        if (selectedBillIds.isEmpty()) {
+            selectionMode = false;
+        }
+        notifyDataSetChanged();
+        notifySelectionStateChanged();
+    }
+
+    private void notifySelectionStateChanged() {
+        if (selectionStateListener != null) {
+            selectionStateListener.onSelectionChanged(selectionMode, selectedBillIds.size());
+        }
     }
 
     @Override
@@ -105,8 +212,11 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
 
         // 状态变量
         private float initialX;
+        private float initialY;
+        private long initialDownTimeMs;
         private float initialTranslationX;
         private boolean isSwiping = false;
+        private boolean isVerticalDragging = false;
         private final int touchSlop;
         private float maxSwipeLimit = -200f; // 初始值，会在 bind 中根据删除按钮宽度动态更新
 
@@ -129,7 +239,13 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
         }
 
         @SuppressLint("ClickableViewAccessibility")
-        void bind(@NonNull Bill bill, @Nullable BillActionsListener listener) {
+        void bind(
+                @NonNull Bill bill,
+                @Nullable BillActionsListener listener,
+                boolean inSelectionMode,
+                boolean isSelected,
+                @NonNull SelectionCallbacks selectionCallbacks
+        ) {
             recycleSwipe();
 
             // 数据填充（保持不变）
@@ -147,6 +263,25 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
             }
             iconCategory.setBackgroundTintList(ColorStateList.valueOf(0xFFFFECF1));
 
+            if (inSelectionMode) {
+                swipeDelete.setVisibility(View.GONE);
+                swipeForeground.setTranslationX(0f);
+                swipeForeground.setStrokeWidth(isSelected ? 2 : 0);
+                swipeForeground.setStrokeColor(ContextCompat.getColor(itemView.getContext(), R.color.md_theme_primary));
+                swipeForeground.setOnTouchListener(null);
+                swipeForeground.setOnClickListener(v -> selectionCallbacks.onToggleSelection(bill));
+                swipeForeground.setOnLongClickListener(v -> {
+                    selectionCallbacks.onToggleSelection(bill);
+                    return true;
+                });
+                swipeDelete.setOnClickListener(null);
+                return;
+            }
+
+            swipeDelete.setVisibility(View.VISIBLE);
+            swipeForeground.setStrokeWidth(0);
+            swipeForeground.setOnLongClickListener(null);
+
             // --- 关键：动态计算侧滑限位 ---
             swipeDelete.post(() -> {
                 int w = swipeDelete.getWidth();
@@ -157,12 +292,22 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
             swipeDelete.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onBillDeleteClick(bill);
-                    recycleSwipe(); // 删除后重置状态
+                    recycleSwipe();
                 }
             });
 
             // 2. 前景卡片的手势处理
             swipeForeground.setOnTouchListener(new View.OnTouchListener() {
+                private Runnable longPressRunnable;
+                private boolean longPressTriggered;
+
+                private void cancelLongPress(View v) {
+                    if (longPressRunnable != null) {
+                        v.removeCallbacks(longPressRunnable);
+                        longPressRunnable = null;
+                    }
+                }
+
                 @Override
                 public boolean onTouch(View v, MotionEvent event) {
                     float currentTranslationX = v.getTranslationX();
@@ -170,49 +315,87 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
                     switch (event.getAction()) {
                         case MotionEvent.ACTION_DOWN:
                             initialX = event.getRawX();
+                            initialY = event.getRawY();
+                            initialDownTimeMs = event.getEventTime();
                             initialTranslationX = currentTranslationX;
                             isSwiping = false;
+                            isVerticalDragging = false;
+                            longPressTriggered = false;
 
-                            // 【核心修复】穿透逻辑
-                            // 如果卡片已经滑开，且用户点击的是右侧露出红色的区域
+                            longPressRunnable = () -> {
+                                longPressTriggered = true;
+                                selectionCallbacks.onEnterSelectionMode(bill);
+                            };
+                            v.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout());
+
                             if (currentTranslationX < -10) {
-                                float clickX = event.getX(); // 相对于卡片的坐标
+                                float clickX = event.getX();
                                 if (clickX > (v.getWidth() + currentTranslationX)) {
-                                    // 点击在红色区，不拦截，让事件传到底层的 swipeDelete
+                                    cancelLongPress(v);
                                     return false;
                                 }
                             }
 
-                            v.getParent().requestDisallowInterceptTouchEvent(true);
+                            // 不要在 DOWN 阶段就抢占，先等方向判定，避免影响 RecyclerView 纵向滚动
+                            v.getParent().requestDisallowInterceptTouchEvent(false);
                             return true;
 
                         case MotionEvent.ACTION_MOVE:
                             float dx = event.getRawX() - initialX;
-                            if (!isSwiping && Math.abs(dx) > touchSlop) {
-                                isSwiping = true;
+                            float dy = event.getRawY() - initialY;
+                            float absDx = Math.abs(dx);
+                            float absDy = Math.abs(dy);
+
+                            if (!isSwiping && !isVerticalDragging) {
+                                if (absDy > touchSlop && absDy > absDx) {
+                                    // 明确是竖向滚动手势：交还给父级（RecyclerView）处理
+                                    isVerticalDragging = true;
+                                    cancelLongPress(v);
+                                    v.getParent().requestDisallowInterceptTouchEvent(false);
+                                    return false;
+                                }
+                                if (absDx > touchSlop && absDx > absDy) {
+                                    // 明确是横向手势：由当前 item 处理侧滑
+                                    isSwiping = true;
+                                    cancelLongPress(v);
+                                    v.getParent().requestDisallowInterceptTouchEvent(true);
+                                }
                             }
                             if (isSwiping) {
                                 float newT = initialTranslationX + dx;
                                 v.setTranslationX(Math.max(maxSwipeLimit, Math.min(0, newT)));
+                                return true;
                             }
-                            return true;
+                            return false;
 
                         case MotionEvent.ACTION_UP:
                         case MotionEvent.ACTION_CANCEL:
+                            cancelLongPress(v);
                             v.getParent().requestDisallowInterceptTouchEvent(false);
+                            if (isVerticalDragging) {
+                                return false;
+                            }
+                            if (longPressTriggered) {
+                                return true;
+                            }
                             float finalTx = v.getTranslationX();
 
                             if (!isSwiping) {
-                                // 点击白色区域收起卡片或触发详情页
+                                float upDx = Math.abs(event.getRawX() - initialX);
+                                float upDy = Math.abs(event.getRawY() - initialY);
+                                long pressDuration = event.getEventTime() - initialDownTimeMs;
+                                float tapMoveThreshold = Math.max(8f, touchSlop * 0.55f);
+                                boolean isRealTap = upDx <= tapMoveThreshold
+                                        && upDy <= tapMoveThreshold
+                                        && pressDuration < 300L;
                                 if (finalTx < -10) {
                                     v.animate().translationX(0).setDuration(200).start();
-                                } else {
-                                    if (listener != null) listener.onBillClick(bill);
+                                } else if (isRealTap && listener != null) {
+                                    listener.onBillClick(bill);
                                 }
                                 return true;
                             }
 
-                            // 弹性吸附：超过 40% 就锁定打开，否则回弹
                             if (finalTx < maxSwipeLimit * 0.4f) {
                                 v.animate().translationX(maxSwipeLimit).setDuration(200).start();
                             } else {

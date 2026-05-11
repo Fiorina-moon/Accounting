@@ -77,4 +77,15 @@ public class BillRepository {
             }
         });
     }
+
+    public void delete(@NonNull List<Bill> bills, @Nullable Runnable onComplete) {
+        ioExecutor.execute(() -> {
+            for (Bill bill : bills) {
+                billDao.delete(bill);
+            }
+            if (onComplete != null) {
+                mainHandler.post(onComplete);
+            }
+        });
+    }
 }
