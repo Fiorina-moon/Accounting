@@ -1,0 +1,19 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.Accounting" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#FF80AB</item>
+        <item name="colorOnPrimary">#3E0018</item>
+        <item name="colorPrimaryContainer">#8E1A4A</item>
+        <item name="colorOnPrimaryContainer">#FFD9E3</item>
+        <item name="colorSecondary">#FFB0C8</item>
+        <item name="colorOnSecondary">#551D30</item>
+        <item name="colorSecondaryContainer">#7A2942</item>
+        <item name="colorOnSecondaryContainer">#FFD9E3</item>
+        <item name="colorError">#FFB4AB</item>
+        <item name="colorOnError">#690005</item>
+        <item name="colorSurface">#FF1B1B1F</item>
+        <item name="android:colorBackground">#FF121316</item>
+        <item name="colorOnSurfaceVariant">#FFCAC4C9</item>
+        <item name="shapeAppearanceCornerMedium">@style/ShapeAppearance.Accounting.Corner.Medium</item>
+        <item name="shapeAppearanceCornerLarge">@style/ShapeAppearance.Accounting.Corner.Large</item>
+    </style>
+</resources>

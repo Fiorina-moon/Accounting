@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Vibrant pink primary -->
+    <color name="md_theme_primary">#FF4081</color>
+    <color name="md_theme_on_primary">#FFFFFF</color>
+    <color name="md_theme_primary_container">#FF80AB</color>
+    <color name="md_theme_on_primary_container">#3E0018</color>
+
+    <color name="md_theme_secondary">#C2185B</color>
+    <color name="md_theme_on_secondary">#FFFFFF</color>
+    <color name="md_theme_secondary_container">#F8BBD0</color>
+    <color name="md_theme_on_secondary_container">#5D1033</color>
+
+    <!-- Deep coral red: expense, distinct from pink primary -->
+    <color name="md_theme_error">#C62828</color>
+    <color name="md_theme_on_error">#FFFFFF</color>
+
+    <color name="md_theme_background">#FCFBFC</color>
+    <color name="md_theme_surface">#FFFFFF</color>
+    <color name="md_theme_on_surface_variant">#6E5E62</color>
+
+    <color name="color_success">#2E7D32</color>
+
+    <color name="stats_card_background">#FFF0F5</color>
+    <color name="category_icon_bg">#FCE4EC</color>
+
+    <!-- 侧滑删除条背景（浅红），与圆形删除按钮主色区分 -->
+    <color name="swipe_delete_track">#FFCDD2</color>
+</resources>

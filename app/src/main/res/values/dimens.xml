@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="corner_card">12dp</dimen>
+    <dimen name="corner_fab">16dp</dimen>
+    <dimen name="corner_bottom_sheet">24dp</dimen>
+    <dimen name="content_padding">16dp</dimen>
+    <dimen name="fab_margin">16dp</dimen>
+    <dimen name="list_bottom_padding">72dp</dimen>
+    <dimen name="list_top_padding">8dp</dimen>
+    <dimen name="header_card_margin_h">8dp</dimen>
+    <dimen name="header_card_margin_v">6dp</dimen>
+    <dimen name="header_card_padding_h">12dp</dimen>
+    <dimen name="header_card_padding_v">4dp</dimen>
+    <dimen name="header_section_spacing">4dp</dimen>
+    <dimen name="header_dropdown_min_height">40dp</dimen>
+</resources>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="ShapeAppearance.Accounting.Corner.Medium" parent="ShapeAppearance.Material3.Corner.Medium">
+        <item name="cornerSize">12dp</item>
+    </style>
+
+    <style name="ShapeAppearance.Accounting.Corner.Large" parent="ShapeAppearance.Material3.Corner.Large">
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <style name="ShapeAppearance.Accounting.BottomSheet" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">@dimen/corner_bottom_sheet</item>
+        <item name="cornerSizeTopRight">@dimen/corner_bottom_sheet</item>
+    </style>
+
+    <style name="ShapeAppearance.Accounting.IconCorner" parent="ShapeAppearance.Material3.Corner.Small">
+        <item name="cornerSize">8dp</item>
+    </style>
+
+    <style name="Widget.Accounting.BottomSheet.Modal" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Accounting.BottomSheet</item>
+    </style>
+
+    <style name="ThemeOverlay.Accounting.BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.Accounting.BottomSheet.Modal</item>
+    </style>
+</resources>

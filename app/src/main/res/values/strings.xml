@@ -1,0 +1,57 @@
+<resources>
+    <string name="app_name">Accounting</string>
+    <string name="title_ledger">我的账本</string>
+    <string name="empty_records_title">暂无账单</string>
+    <string name="empty_records_hint">点击右下角按钮记一笔</string>
+
+    <string name="add_bill_amount_hint">金额</string>
+    <string name="add_bill_amount_label">金额（元）</string>
+    <string name="add_bill_type_expense">支出</string>
+    <string name="add_bill_type_income">收入</string>
+    <string name="add_bill_category_label">分类</string>
+    <string name="add_bill_pick_date">选择日期</string>
+    <string name="add_bill_save">保存</string>
+    <string name="add_bill_note_hint">备注（可选）</string>
+    <string name="add_bill_note_label">备注</string>
+
+    <string name="category_dining">餐饮</string>
+    <string name="category_transport">交通</string>
+    <string name="category_shopping">购物</string>
+    <string name="category_other">其他</string>
+
+    <string name="error_amount_required">请输入有效金额</string>
+    <string name="error_category_required">请选择分类</string>
+
+    <string name="snack_bill_saved">已保存</string>
+    <string name="snack_bill_updated">已更新</string>
+    <string name="snack_bill_deleted">已删除</string>
+    <string name="add_bill_save_update">保存修改</string>
+
+    <string name="month_picker_title">选择月份</string>
+    <string name="month_prev">上一月</string>
+    <string name="month_next">下一月</string>
+    <string name="month_dropdown_hint">月份</string>
+    <string name="type_dropdown_hint">收支类型</string>
+    <string name="category_dropdown_hint">分类</string>
+    <string name="filter_expense_only">仅支出</string>
+    <string name="filter_income_only">仅收入</string>
+    <string name="summary_expense_label">总支出</string>
+    <string name="summary_income_label">总收入</string>
+    <string name="summary_balance_label">结余</string>
+    <string name="summary_money_value">%1$.2f 元</string>
+
+    <string name="delete_bill_title">删除账单</string>
+    <string name="delete_bill_message">确定要删除这条记录吗？</string>
+    <string name="delete_bill_confirm">删除</string>
+
+    <string name="swipe_delete_label">删除</string>
+    <string name="filter_type_label">收支</string>
+    <string name="filter_category_label">分类</string>
+    <string name="filter_all">全部</string>
+
+    <string name="fragment_result_add_bill">add_bill_request</string>
+    <string name="fab_add_content_description">添加账单</string>
+
+    <string name="bill_amount_expense_format">-%1$s</string>
+    <string name="bill_amount_income_format">+%1$s</string>
+</resources>

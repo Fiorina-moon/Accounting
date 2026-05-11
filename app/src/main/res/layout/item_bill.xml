@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    android:background="@drawable/shape_item_background"
+    android:clipChildren="false"
+    android:clipToOutline="true">
+
+    <FrameLayout
+        android:id="@+id/swipe_delete"
+        android:layout_width="80dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:background="@drawable/shape_swipe_delete_background"
+        android:clickable="true"
+        android:contentDescription="@string/swipe_delete_label"
+        android:focusable="true"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp">
+
+        <FrameLayout
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="center"
+            android:background="@drawable/shape_swipe_delete_circle"
+            android:foreground="?attr/selectableItemBackgroundBorderless">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_delete_24" />
+        </FrameLayout>
+    </FrameLayout>
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/swipe_foreground"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        app:cardBackgroundColor="?attr/colorSurface"
+        app:cardCornerRadius="@dimen/corner_card"
+        app:cardElevation="1dp"
+        app:strokeWidth="0dp">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="@dimen/content_padding">
+
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/icon_category"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@color/category_icon_bg"
+                android:padding="10dp"
+                android:scaleType="centerInside"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.Accounting.IconCorner"
+                app:srcCompat="@drawable/ic_receipt_24"
+                tools:ignore="ContentDescription" />
+
+            <TextView
+                android:id="@+id/text_category"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                app:layout_constraintEnd_toStartOf="@id/text_amount"
+                app:layout_constraintStart_toEndOf="@id/icon_category"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:text="餐饮" />
+
+            <TextView
+                android:id="@+id/text_note"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                app:layout_constraintEnd_toStartOf="@id/text_amount"
+                app:layout_constraintStart_toEndOf="@id/icon_category"
+                app:layout_constraintTop_toBottomOf="@id/text_category"
+                tools:text="午餐" />
+
+            <androidx.constraintlayout.widget.Barrier
+                android:id="@+id/barrier_below_middle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:barrierDirection="bottom"
+                app:constraint_referenced_ids="text_category,text_note" />
+
+            <TextView
+                android:id="@+id/text_date"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="4dp"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toStartOf="@id/text_amount"
+                app:layout_constraintStart_toEndOf="@id/icon_category"
+                app:layout_constraintTop_toBottomOf="@id/barrier_below_middle"
+                tools:text="2024-03-15" />
+
+            <TextView
+                android:id="@+id/text_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:textFontWeight="500"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:text="-12.50"
+                tools:targetApi="p" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </com.google.android.material.card.MaterialCardView>
+</FrameLayout>
