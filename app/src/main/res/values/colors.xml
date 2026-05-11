@@ -26,7 +26,4 @@
 
     <color name="stats_card_background">#FFF0F5</color>
     <color name="category_icon_bg">#FCE4EC</color>
-
-    <!-- 侧滑删除条背景（浅红），与圆形删除按钮主色区分 -->
-    <color name="swipe_delete_track">#FFCDD2</color>
 </resources>

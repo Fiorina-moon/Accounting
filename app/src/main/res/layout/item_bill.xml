@@ -9,7 +9,8 @@
     android:clipChildren="false"
     android:clipToOutline="true">
 
-    <FrameLayout
+    <!-- 删除条在卡片下层；左滑后点击红区仍命中前景卡片，由 BillAdapter 根据触点横坐标区分删除/收起 -->
+    <TextView
         android:id="@+id/swipe_delete"
         android:layout_width="80dp"
         android:layout_height="match_parent"
@@ -18,24 +19,12 @@
         android:clickable="true"
         android:contentDescription="@string/swipe_delete_label"
         android:focusable="true"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp">
-
-        <FrameLayout
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_gravity="center"
-            android:background="@drawable/shape_swipe_delete_circle"
-            android:foreground="?attr/selectableItemBackgroundBorderless">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_gravity="center"
-                android:importantForAccessibility="no"
-                app:srcCompat="@drawable/ic_delete_24" />
-        </FrameLayout>
-    </FrameLayout>
+        android:foreground="?attr/selectableItemBackgroundBorderless"
+        android:gravity="center"
+        android:minHeight="72dp"
+        android:text="@string/swipe_delete_label"
+        android:textAppearance="?attr/textAppearanceLabelLarge"
+        android:textColor="@android:color/white" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/swipe_foreground"
@@ -46,7 +35,7 @@
         android:foreground="?attr/selectableItemBackground"
         app:cardBackgroundColor="?attr/colorSurface"
         app:cardCornerRadius="@dimen/corner_card"
-        app:cardElevation="1dp"
+        app:cardElevation="0dp"
         app:strokeWidth="0dp">
 
         <androidx.constraintlayout.widget.ConstraintLayout

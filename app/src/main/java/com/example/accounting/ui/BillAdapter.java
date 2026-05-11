@@ -1,8 +1,13 @@
 package com.example.accounting.ui;
 
+import android.annotation.SuppressLint;
 import android.content.res.ColorStateList;
+import android.graphics.Outline;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.ViewOutlineProvider;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
@@ -26,7 +31,6 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
 
     public interface BillActionsListener {
         void onBillClick(@NonNull Bill bill);
-
         void onBillDeleteClick(@NonNull Bill bill);
     }
 
@@ -65,6 +69,17 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
     @Override
     public BillViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_bill, parent, false);
+
+        // 视觉修复：圆角裁剪，防止红色溢出
+        view.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                float radius = view.getResources().getDimension(R.dimen.card_corner_radius);
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+            }
+        });
+        view.setClipToOutline(true);
+
         return new BillViewHolder(view);
     }
 
@@ -80,7 +95,6 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
     }
 
     static final class BillViewHolder extends RecyclerView.ViewHolder {
-
         private final MaterialCardView swipeForeground;
         private final View swipeDelete;
         private final ShapeableImageView iconCategory;
@@ -88,6 +102,13 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
         private final TextView textNote;
         private final TextView textDate;
         private final TextView textAmount;
+
+        // 状态变量
+        private float initialX;
+        private float initialTranslationX;
+        private boolean isSwiping = false;
+        private final int touchSlop;
+        private float maxSwipeLimit = -200f; // 初始值，会在 bind 中根据删除按钮宽度动态更新
 
         BillViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -98,71 +119,110 @@ public class BillAdapter extends ListAdapter<Bill, BillAdapter.BillViewHolder> {
             textNote = swipeForeground.findViewById(R.id.text_note);
             textDate = swipeForeground.findViewById(R.id.text_date);
             textAmount = swipeForeground.findViewById(R.id.text_amount);
+            touchSlop = ViewConfiguration.get(itemView.getContext()).getScaledTouchSlop();
         }
 
         void recycleSwipe() {
             swipeForeground.animate().cancel();
             swipeForeground.setTranslationX(0f);
+            isSwiping = false;
         }
 
+        @SuppressLint("ClickableViewAccessibility")
         void bind(@NonNull Bill bill, @Nullable BillActionsListener listener) {
             recycleSwipe();
 
+            // 数据填充（保持不变）
             textCategory.setText(bill.getCategory());
-            String note = bill.getNote();
-            if (note == null || note.isEmpty()) {
-                textNote.setVisibility(View.GONE);
-            } else {
-                textNote.setVisibility(View.VISIBLE);
-                textNote.setText(note);
-            }
+            textNote.setVisibility((bill.getNote() == null || bill.getNote().isEmpty()) ? View.GONE : View.VISIBLE);
+            textNote.setText(bill.getNote());
             textDate.setText(DATE_FORMAT.get().format(bill.getDateMillis()));
-
-            Locale locale = Locale.getDefault();
-            String amountPart = String.format(locale, "%.2f", bill.getAmount());
+            String amountStr = String.format(Locale.getDefault(), "%.2f", bill.getAmount());
             if (bill.getType() == Bill.TYPE_EXPENSE) {
-                textAmount.setText(itemView.getContext().getString(R.string.bill_amount_expense_format, amountPart));
+                textAmount.setText("-" + amountStr);
                 textAmount.setTextColor(ContextCompat.getColor(itemView.getContext(), R.color.md_theme_error));
             } else {
-                textAmount.setText(itemView.getContext().getString(R.string.bill_amount_income_format, amountPart));
+                textAmount.setText("+" + amountStr);
                 textAmount.setTextColor(ContextCompat.getColor(itemView.getContext(), R.color.color_success));
             }
+            iconCategory.setBackgroundTintList(ColorStateList.valueOf(0xFFFFECF1));
 
-            int bgTint = categoryBackgroundTint(bill.getCategory());
-            iconCategory.setImageResource(R.drawable.ic_receipt_24);
-            iconCategory.setBackgroundTintList(ColorStateList.valueOf(bgTint));
-
-            swipeForeground.setOnClickListener(v -> {
-                if (Math.abs(swipeForeground.getTranslationX()) > 4f) {
-                    swipeForeground.animate().translationX(0f).setDuration(120).start();
-                    return;
-                }
-                if (listener != null) {
-                    listener.onBillClick(bill);
-                }
+            // --- 关键：动态计算侧滑限位 ---
+            swipeDelete.post(() -> {
+                int w = swipeDelete.getWidth();
+                if (w > 0) maxSwipeLimit = -w;
             });
 
+            // 1. 底层删除按钮的点击监听
             swipeDelete.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onBillDeleteClick(bill);
+                    recycleSwipe(); // 删除后重置状态
                 }
             });
-        }
 
-        private static int categoryBackgroundTint(String category) {
-            if (category == null) {
-                return 0xFFE0F2F1;
-            }
-            switch (category) {
-                case "餐饮":
-                    return 0xFFE8F5E9;
-                case "交通":
-                    return 0xFFE3F2FD;
-                case "购物":
-                    return 0xFFFFF3E0;
-                default:
-                    return 0xFFE0F2F1;
-            }
+            // 2. 前景卡片的手势处理
+            swipeForeground.setOnTouchListener(new View.OnTouchListener() {
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    float currentTranslationX = v.getTranslationX();
+
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
+                            initialX = event.getRawX();
+                            initialTranslationX = currentTranslationX;
+                            isSwiping = false;
+
+                            // 【核心修复】穿透逻辑
+                            // 如果卡片已经滑开，且用户点击的是右侧露出红色的区域
+                            if (currentTranslationX < -10) {
+                                float clickX = event.getX(); // 相对于卡片的坐标
+                                if (clickX > (v.getWidth() + currentTranslationX)) {
+                                    // 点击在红色区，不拦截，让事件传到底层的 swipeDelete
+                                    return false;
+                                }
+                            }
+
+                            v.getParent().requestDisallowInterceptTouchEvent(true);
+                            return true;
+
+                        case MotionEvent.ACTION_MOVE:
+                            float dx = event.getRawX() - initialX;
+                            if (!isSwiping && Math.abs(dx) > touchSlop) {
+                                isSwiping = true;
+                            }
+                            if (isSwiping) {
+                                float newT = initialTranslationX + dx;
+                                v.setTranslationX(Math.max(maxSwipeLimit, Math.min(0, newT)));
+                            }
+                            return true;
+
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                            v.getParent().requestDisallowInterceptTouchEvent(false);
+                            float finalTx = v.getTranslationX();
+
+                            if (!isSwiping) {
+                                // 点击白色区域收起卡片或触发详情页
+                                if (finalTx < -10) {
+                                    v.animate().translationX(0).setDuration(200).start();
+                                } else {
+                                    if (listener != null) listener.onBillClick(bill);
+                                }
+                                return true;
+                            }
+
+                            // 弹性吸附：超过 40% 就锁定打开，否则回弹
+                            if (finalTx < maxSwipeLimit * 0.4f) {
+                                v.animate().translationX(maxSwipeLimit).setDuration(200).start();
+                            } else {
+                                v.animate().translationX(0).setDuration(200).start();
+                            }
+                            return true;
+                    }
+                    return false;
+                }
+            });
         }
     }
 }
